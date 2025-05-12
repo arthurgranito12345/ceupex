@@ -3,7 +3,9 @@ import {
   collection,
   getDocs,
   doc,
-  getDoc, // Importe getDoc
+  getDoc,
+  updateDoc,
+  Timestamp, // Importe getDoc
 } from "firebase/firestore";
 import { db } from "../../../../firebaseConfig";
 import { format, fromUnixTime } from "date-fns";
@@ -26,6 +28,9 @@ import {
   SelectValue,
   SelectContent,
 } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { DialogClose, DialogDescription } from "@radix-ui/react-dialog";
 
 function RelatorioDespesas() {
   const [despesas, setDespesas] = useState([]);
@@ -46,6 +51,35 @@ function RelatorioDespesas() {
   const [subcategorias, setSubcategorias] = useState([]);
   const [ordenacao, setOrdenacao] = useState(null);
   const [direcaoOrdenacao, setDirecaoOrdenacao] = useState("desc");
+  const [novaData, setNovaData] = useState("");
+  const [novaCategoria, setNovaCategoria] = useState("");
+  const [novaSubcategoria, setNovaSubcategoria] = useState("");
+  const [novaDescricao, setNovaDescricao] = useState("");
+  const [novoValor, setNovoValor] = useState("");
+  const [despesaSelecionada, setDespesaSelecionada] = useState(null);
+  const [subcategoriasEdicao, setSubcategoriasEdicao] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    const categoriaSelecionada = categorias.find(
+      (cat) => cat.nome === (novaCategoria || despesaSelecionada?.categoria)
+    );
+
+    if (categoriaSelecionada) {
+      const subcats = categoriaSelecionada.subcategorias?.map((sub) => {
+        if (sub.nome === "Utensílios de Cozinha") {
+          return { ...sub, nome: "Untensílios de Cozinha" }; // correção do nome
+        }
+        return sub;
+      }) || [];
+
+      setSubcategoriasEdicao(subcats);
+    }
+
+    if (despesaSelecionada) {
+      setNovaSubcategoria(despesaSelecionada.subcategoria);
+    }
+  }, [despesaSelecionada, novaCategoria, categorias]);
 
   useEffect(() => {
     const fetchDespesas = async () => {
@@ -106,7 +140,7 @@ function RelatorioDespesas() {
 
     fetchDespesas();
     fetchCategorias();
-  }, []);
+  }, [isModalOpen]);
 
   useEffect(() => {
     if (categoriaFiltro) {
@@ -287,7 +321,51 @@ function RelatorioDespesas() {
   if (error) {
     return <div>{error}</div>;
   }
-  
+
+  const definirNovaDespesa = (despesa) => {
+    setDespesaSelecionada(despesa);
+    setNovaData(format(new Date(despesa.data?.seconds * 1000), "yyyy-MM-dd"));
+    setNovaCategoria(despesa.categoria);
+    setNovaSubcategoria(despesa.subcategoria);
+    setNovaDescricao(despesa.descricao);
+    setNovoValor(despesa.valor);
+  }
+
+  const handleUpdateDespesa = async (e) => {
+    e.preventDefault();
+    const refDoc = doc(db, 'despesas', despesaSelecionada.id);
+
+    const dateParts = novaData.split("-");
+    const localDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 12, 0);
+
+    const dataTimestamp = Timestamp.fromDate(localDate);
+
+    try {
+      await updateDoc(refDoc, {
+        categoria: novaCategoria,
+        data: dataTimestamp,
+        descricao: novaDescricao,
+        subcategoria: novaSubcategoria,
+        valor: parseFloat(novoValor),
+      });
+
+      console.log("Documento atualizado com sucesso!");
+      Toastify({
+        text: "Atualizado com sucesso",
+        duration: 3000,
+        gravity: "bottom",
+        position: "right",
+        stopOnFocus: true,
+        style: {
+          background: "oklch(72.3% 0.219 149.579)",
+        },
+      }).showToast();
+      setIsModalOpen(false);
+    } catch (erro) {
+      console.error("Erro ao atualizar o documento", erro);
+    }
+  };
+
   return (
     <>
       <Card>
@@ -417,17 +495,83 @@ function RelatorioDespesas() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {despesasFiltradas.map((despesa) => (
-                  <TableRow key={despesa.id}>
-                    <TableCell>{formatDate(despesa.data)}</TableCell>
-                    <TableCell className="capitalize">{despesa.categoria}</TableCell>
-                    <TableCell className="capitalize">{despesa.subcategoria}</TableCell>
-                    <TableCell className="capitalize">{despesa.descricao}</TableCell>
-                    <TableCell className="text-right">
-                      R$ {despesa.valor?.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {despesasFiltradas.map((despesa) => {
+                  return (
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <TableRow key={despesa.id} onClick={() => {
+                          definirNovaDespesa(despesa);
+                          setIsModalOpen(true);
+                        }} className="cursor-pointer hover:underline">
+                          <TableCell>{formatDate(despesa.data)}</TableCell>
+                          <TableCell className="capitalize">{despesa.categoria}</TableCell>
+                          <TableCell className="capitalize">{despesa.subcategoria}</TableCell>
+                          <TableCell className="capitalize">{despesa.descricao}</TableCell>
+                          <TableCell className="text-right">
+                            R$ {despesa.valor?.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      </DialogTrigger>
+                      <DialogContent className={`sm:max-w-[425px] ${isModalOpen ? "flex flex-col" : "hidden"}`}>
+                        <DialogHeader>
+                          <DialogTitle>Editar despesa</DialogTitle>
+                          <DialogDescription>Editar dados da despesa</DialogDescription>
+                        </DialogHeader>
+                        {despesaSelecionada && (
+                          <div className="grid gap-4 py-4">
+                            <form className="flex flex-col gap-2" onSubmit={handleUpdateDespesa}>
+                              <Label htmlFor="data">Data:</Label>
+                              <Input type="date" value={novaData} onChange={(e) => setNovaData(e.target.value)} />
+                              <div className="flex flex-col">
+                                <Label htmlFor="categoria" className="mb-2">Categoria:</Label>
+                                <Select value={novaCategoria} onValueChange={setNovaCategoria}>
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder={despesaSelecionada.categoria} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {categorias.filter((categoria) => categoria.nome !== "Seguros").map((categoria) => (
+                                      <SelectItem key={categoria.id} value={categoria.nome}>
+                                        {categoria.nome}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex flex-col">
+                                <Label htmlFor="categoria" className="mb-2">Subcategoria:</Label>
+                                <Select value={novaSubcategoria} onValueChange={setNovaSubcategoria}>
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Selecione a subcategoria" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {subcategoriasEdicao.map((subcategoria) => (
+                                      <SelectItem key={subcategoria.nome} value={subcategoria.nome}>
+                                        {subcategoria.nome}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Label htmlFor="descricao">Descrição:</Label>
+                              <Input type="text" className="capitalize" value={novaDescricao} onChange={(e) => setNovaDescricao(e.target.value)} />
+                              <Label htmlFor="descricao">Valor:</Label>
+                              <Input type="number" value={novoValor} onChange={(e) => setNovoValor(e.target.value)} />
+
+                              <div className="flex gap-4 w-full items-center justify-between">
+                                <DialogClose asChild>
+                                  <Button type="submit">Atualizar Despesa</Button>
+                                </DialogClose>
+                                <DialogClose asChild>
+                                  <Button variant="destructive" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+                                </DialogClose>
+                              </div>
+                            </form>
+                          </div>
+                        )}
+                      </DialogContent>
+                    </Dialog>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>

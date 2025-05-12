@@ -18,6 +18,9 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectContent } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { DialogHeader } from '@/components/ui/dialog';
 
 function RelatorioReceitas() {
     const [receitas, setReceitas] = useState([]);
@@ -34,6 +37,13 @@ function RelatorioReceitas() {
     const [categorias, setCategorias] = useState([]);
     const [ordenacao, setOrdenacao] = useState(null);
     const [direcaoOrdenacao, setDirecaoOrdenacao] = useState('desc');
+    const [novaData, setNovaData] = useState("");
+    const [novaCategoria, setNovaCategoria] = useState("");
+    const [novaReferencia, setNovaReferencia] = useState("");
+    const [novaDescricao, setNovaDescricao] = useState("");
+    const [novoValor, setNovoValor] = useState("");
+    const [receitaSelecionada, setReceitaSelecionada] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
         const fetchReceitas = async () => {
@@ -77,7 +87,7 @@ function RelatorioReceitas() {
 
         fetchReceitas();
         fetchCategorias();
-    }, []);
+    }, [isModalOpen]);
 
     const formatDate = (date) => {
         if (!date) return 'Data inválida';
@@ -177,6 +187,50 @@ function RelatorioReceitas() {
         return <div>{error}</div>;
     }
 
+    const definirNovaReceita = (receita) => {
+        setReceitaSelecionada(receita);
+        setNovaData(format(new Date(receita.data?.seconds * 1000), "yyyy-MM-dd"));
+        setNovaCategoria(receita.categoria);
+        setNovaReferencia(receita.referencia);
+        setNovaDescricao(receita.descricao);
+        setNovoValor(receita.valor);
+    }
+
+    const handleUpdateReceita = async (e) => {
+        e.preventDefault();
+        const refDoc = doc(db, 'receitas', 'Y2zlodrLAkak0sCTrso9', 'receitas', receitaSelecionada.id);
+
+        const dateParts = novaData.split("-");
+        const localDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 12, 0);
+
+        const dataTimestamp = Timestamp.fromDate(localDate);
+
+        try {
+            await updateDoc(refDoc, {
+                categoria: novaCategoria,
+                data: dataTimestamp,
+                descricao: novaDescricao,
+                referencia: novaReferencia,
+                valor: parseFloat(novoValor),
+            });
+
+            console.log("Documento atualizado com sucesso!");
+            Toastify({
+                text: "Atualizado com sucesso",
+                duration: 3000,
+                gravity: "bottom",
+                position: "right",
+                stopOnFocus: true,
+                style: {
+                    background: "oklch(72.3% 0.219 149.579)",
+                },
+            }).showToast();
+            setIsModalOpen(false);
+        } catch (erro) {
+            console.error("Erro ao atualizar o documento", erro);
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
@@ -244,13 +298,64 @@ function RelatorioReceitas() {
                         </TableHeader>
                         <TableBody>
                             {receitasFiltradas.map(receita => (
-                                <TableRow key={receita.id}>
-                                    <TableCell>{formatDate(receita.data)}</TableCell>
-                                    <TableCell className="capitalize">{receita.categoria}</TableCell>
-                                    <TableCell className="capitalize">{receita.descricao}</TableCell>
-                                    <TableCell className="capitalize">{receita.referencia}</TableCell>
-                                    <TableCell className="text-right">R$ {receita.valor?.toFixed(2)}</TableCell>
-                                </TableRow>
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                        <TableRow key={receita.id} onClick={() => {
+                                            definirNovaReceita(receita);
+                                            setIsModalOpen(true);
+                                        }} className="cursor-pointer hover:underline">
+                                            <TableCell>{formatDate(receita.data)}</TableCell>
+                                            <TableCell className="capitalize">{receita.categoria}</TableCell>
+                                            <TableCell className="capitalize">{receita.descricao}</TableCell>
+                                            <TableCell className="capitalize">{receita.referencia}</TableCell>
+                                            <TableCell className="text-right">R$ {receita.valor?.toFixed(2)}</TableCell>
+                                        </TableRow>
+                                    </DialogTrigger>
+                                    <DialogContent className={`sm:max-w-[425px] ${isModalOpen ? "flex flex-col" : "hidden"}`}>
+                                        <DialogHeader>
+                                            <DialogTitle>Editar receita</DialogTitle>
+                                            <DialogDescription>Editar dados da receita</DialogDescription>
+                                        </DialogHeader>
+                                        {receitaSelecionada && (
+                                            <div className="grid gap-4 py-4">
+                                                <form className="flex flex-col gap-2" onSubmit={handleUpdateReceita}>
+                                                    <Label htmlFor="data">Data:</Label>
+                                                    <Input type="date" value={novaData} onChange={(e) => setNovaData(e.target.value)} />
+                                                    <div className="flex flex-col">
+                                                        <Label htmlFor="categoria" className="mb-2">Categoria:</Label>
+                                                        <Select value={novaCategoria} onValueChange={setNovaCategoria}>
+                                                            <SelectTrigger className="w-full">
+                                                                <SelectValue placeholder={receitaSelecionada.categoria} />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {categorias.map((categoria) => (
+                                                                    <SelectItem key={categoria.id} value={categoria.nome}>
+                                                                        {categoria.nome}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <Label htmlFor="referencia">Referência:</Label>
+                                                    <Input type="text" className="capitalize" value={novaReferencia} onChange={(e) => setNovaReferencia(e.target.value)} />
+                                                    <Label htmlFor="descricao">Descrição:</Label>
+                                                    <Input type="text" className="capitalize" value={novaDescricao} onChange={(e) => setNovaDescricao(e.target.value)} />
+                                                    <Label htmlFor="descricao">Valor:</Label>
+                                                    <Input type="number" value={novoValor} onChange={(e) => setNovoValor(e.target.value)} />
+
+                                                    <div className="flex gap-4 w-full items-center justify-between">
+                                                        <DialogClose asChild>
+                                                            <Button type="submit">Atualizar Receita</Button>
+                                                        </DialogClose>
+                                                        <DialogClose asChild>
+                                                            <Button variant="destructive" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+                                                        </DialogClose>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        )}
+                                    </DialogContent>
+                                </Dialog>
                             ))}
                         </TableBody>
                     </Table>
