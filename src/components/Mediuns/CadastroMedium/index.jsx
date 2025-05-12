@@ -102,9 +102,16 @@ function AdicionarContribuicao() {
       if (mediumSnap.exists()) {
         const currentDebitoTotal = mediumSnap.data().debito_total || 0;
         let novoDebitoTotal = currentDebitoTotal;
+        const currentCreditoTotal = mediumSnap.data().credito_total || 0;
+        let novoCreditoTotal = currentCreditoTotal;
 
         if (tipo === 'debito') {
-          novoDebitoTotal += parseFloat(valor);
+          if(currentCreditoTotal >= parseFloat(valor)) {
+            novoCreditoTotal -= parseFloat(valor);
+          } else { 
+            novoDebitoTotal -= (currentCreditoTotal - parseFloat(valor));
+            novoCreditoTotal = 0;
+          }
         } else if (tipo === 'pagamento') {
           novoDebitoTotal -= parseFloat(valor);
           if (novoDebitoTotal < 0) {
@@ -126,8 +133,10 @@ function AdicionarContribuicao() {
 
         await updateDoc(mediumRef, {
           debito_total: novoDebitoTotal,
+          credito_total: novoCreditoTotal,
         });
         console.log('Débito total do médium atualizado para:', novoDebitoTotal);
+        console.log('Crédito total do médium atualizado para:', novoCreditoTotal);
       } else {
         console.log('Documento do médium não encontrado.');
       }
@@ -196,6 +205,7 @@ function AdicionarContribuicao() {
                   <SelectContent>
                     <SelectItem value="pagamento">Pagamento</SelectItem>
                     <SelectItem value="debito">Débito</SelectItem>
+                    <SelectItem value="credito">Crédito</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -34,6 +34,7 @@ function RelatorioMediuns() {
           id: doc.id,
           debito_total: doc.data().debito_total,
           nome: doc.data().nome,
+          credito_total: doc.data().credito_total,
         }));
         data.sort((a, b) => a.nome.localeCompare(b.nome));
         setMediunsDebitos(data);
@@ -137,6 +138,7 @@ function RelatorioMediuns() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome do Médium</TableHead>
+                <TableHead>Crédito Total</TableHead>
                 <TableHead className="text-right">Débito Total</TableHead>
               </TableRow>
             </TableHeader>
@@ -144,6 +146,7 @@ function RelatorioMediuns() {
               {filteredMediunsDebitos.map(medium => (
                 <TableRow key={medium.id} className="w-full cursor-pointer hover:underline" onClick={() => handleOpenModal(medium)}>
                   <TableCell>{medium.nome}</TableCell>
+                  <TableCell>R$ {medium.credito_total ? medium.credito_total?.toFixed(2) : "0.00"}</TableCell>
                   <TableCell className="text-right">R${medium.debito_total?.toFixed(2)}</TableCell>
                 </TableRow>
               ))}
@@ -153,7 +156,7 @@ function RelatorioMediuns() {
       </Card>
 
       <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
-        <DialogContent>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedMedium?.nome}</DialogTitle>
             <DialogDescription>
@@ -164,7 +167,10 @@ function RelatorioMediuns() {
             <div className='max-w-full overflow-auto'>
               <Card className="contribuicoes-table w-full min-w-[300]">
                 <CardHeader>
-                  <CardTitle>Débito Total: R$ {selectedMedium.debito_total?.toFixed(2)}</CardTitle>
+                  <CardTitle className="flex justify-between">
+                    <p>Débito Total: R$ {selectedMedium.debito_total?.toFixed(2)}</p>
+                    <p>Crédito Total: R$ {selectedMedium.credito_total?.toFixed(2) || "0.00"}</p>
+                  </CardTitle>
                   <CardDescription>Contribuições:</CardDescription>
                 </CardHeader>
                 <CardContent>
