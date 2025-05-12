@@ -32,7 +32,7 @@ function AdicionarContribuicao() {
 
     const fetchReceitaCategorias = async () => {
       // Referência ao documento de categorias de receita
-      const receitasDocRef = doc(db, 'categorias', 'LPhVeI6D48zNqlySxPmv');
+      const receitasDocRef = doc(db, 'categorias', 'NUHFBehq9RrPSXBOtCQf');
       // Referência à subcoleção de receitas dentro desse documento
       const receitasCategoriasCollection = collection(receitasDocRef, 'receitas');
 
